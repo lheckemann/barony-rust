@@ -7,13 +7,11 @@ use std::io::BufReader;
 
 use byteorder::{LE, ReadBytesExt};
 
-use luminance::buffer::Buffer;
-
 #[derive(Clone, Copy, Debug)]
-struct Colour {
-    r: u8,
-    g: u8,
-    b: u8,
+pub struct Colour {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
 }
 
 impl Colour {
@@ -21,10 +19,10 @@ impl Colour {
 }
 
 const PALETTE_SIZE : usize = 256;
-struct VoxelModel {
-    width : u32,
-    height : u32,
-    depth : u32,
+pub struct VoxelModel {
+    pub width : u32,
+    pub height : u32,
+    pub depth : u32,
     palette: [Colour; PALETTE_SIZE],
     data: Vec<u8>,
 }
@@ -111,18 +109,18 @@ impl VoxelModel {
     }
 }
 
-#[derive(Debug)]
-struct Vertex {
-    x : f32,
-    y : f32,
-    z : f32,
+#[derive(Debug, Clone, Copy)]
+pub struct Vertex {
+    pub x : f32,
+    pub y : f32,
+    pub z : f32,
 }
 impl Vertex {
     const ORIGIN: Vertex = Vertex {x: 0., y: 0., z: 0.};
 }
 
 #[derive(Debug, Clone, Copy)]
-enum Direction {
+pub enum Direction {
     Up,
     Down,
     East,
@@ -169,11 +167,11 @@ fn make_quad(side: Direction, x: u32, y: u32, z: u32) -> [Vertex; 4] {
     }
 }
 
-#[derive(Debug)]
-struct Quad {
-    vertices : [Vertex; 4],
-    colour : Colour,
-    side : Direction,
+#[derive(Debug, Copy, Clone)]
+pub struct Quad {
+    pub vertices : [Vertex; 4],
+    pub colour : Colour,
+    pub side : Direction,
 }
 
 /*
@@ -212,10 +210,7 @@ fn load_model(stream : &mut Read) -> ::std::io::Result<VoxelModel> {
     Ok(voxel_model)
 }
 
-pub fn main() {
-    let model_file = File::open("minotaur_head.vox");
-    let model = model_file.and_then(|mut f| load_model(&mut f)).unwrap();
-    let polys = model.polygonise();
-    println!("{:?}", model);
-    println!("{} quads", polys.len());
+pub fn minotaur() -> VoxelModel {
+    let model_file = File::open("troll_head.vox");
+    model_file.and_then(|mut f| load_model(&mut f)).unwrap()
 }

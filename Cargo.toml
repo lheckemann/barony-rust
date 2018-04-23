@@ -4,5 +4,7 @@ version = "0.1.0"
 authors = ["Linus Heckemann <git@sphalerite.org>"]
 
 [dependencies]
-luminance = '*'
+glium = '*'
+glutin = '*'
 byteorder = '*'
+cgmath = '*'

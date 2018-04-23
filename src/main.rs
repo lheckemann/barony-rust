@@ -1,7 +1,11 @@
-extern crate luminance;
+extern crate cgmath;
+#[macro_use]
+extern crate glium;
+extern crate glutin;
 extern crate byteorder;
 mod graphics;
+mod display;
 
 fn main() {
-    graphics::main();
+    display::main();
 }

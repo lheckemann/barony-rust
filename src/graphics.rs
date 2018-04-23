@@ -53,30 +53,58 @@ impl VoxelModel {
     pub fn polygonise(&self) -> Vec<Quad> {
         let mut result = Vec::new();
 
-        for z in 0..self.depth {
-            let mut this_layer = Vec::new();
+        let add_quad = |layer : &mut Vec<Quad>, dir : Direction, x, y, z| {
+            let colour = self.at(x, y, z).expect("polygonise tried to access OOB position!?");
+            colour.map(|c| {
+                // Get the voxel "in front" of this one
+                let neigh_pos = dir.step(x, y, z);
+                let neigh = self.at(neigh_pos[0], neigh_pos[1], neigh_pos[2]);
+                // Only add the quad if it doesn't have another voxel blocking its view
+                if neigh.unwrap_or(None).is_some() { return; }
+                let quad = Quad {
+                    vertices: make_quad(dir, x, y, z),
+                    colour: c,
+                    side: dir,
+                };
+                layer.push(quad);
+            });
+        };
+
+        for x in 0..self.width {
+            let mut east_layer = Vec::new();
+            let mut west_layer = Vec::new();
             for y in 0..self.height {
-                for x in 0..self.width {
-                    let index = self.index(x, y, z).expect("polygonise tried to access OOB position!?");
-                    let colour = self.at(x, y, z).expect("polygonise tried to access OOB position!?");
-                    colour.map(|c| {
-                        let quad = Quad {
-                            vertices: [
-                                Vertex {x: x as f32, y: y as f32, z: z as f32},
-                                Vertex {x: x as f32, y: y as f32, z: z as f32},
-                                Vertex {x: x as f32, y: y as f32, z: z as f32},
-                                Vertex {x: x as f32, y: y as f32, z: z as f32},
-                            ],
-                            colour: c,
-                            side: Direction::North,
-                        };
-                        this_layer.push(quad);
-                    });
+                for z in 0..self.depth {
+                    add_quad(&mut east_layer, Direction::East, x, y, z);
+                    add_quad(&mut west_layer, Direction::West, x, y, z);
                 }
             }
-            for quad in this_layer {
-                result.push(quad);
+            result.extend(east_layer);
+            result.extend(west_layer);
+        }
+        for y in 0..self.height {
+            let mut up_layer = Vec::new();
+            let mut down_layer = Vec::new();
+            for x in 0..self.width {
+                for z in 0..self.depth {
+                    add_quad(&mut up_layer, Direction::Up, x, y, z);
+                    add_quad(&mut down_layer, Direction::Down, x, y, z);
+                }
             }
+            result.extend(up_layer);
+            result.extend(down_layer);
+        }
+        for z in 0..self.depth {
+            let mut north_layer = Vec::new();
+            let mut south_layer = Vec::new();
+            for y in 0..self.height {
+                for x in 0..self.width {
+                    add_quad(&mut north_layer, Direction::North, x, y, z);
+                    add_quad(&mut south_layer, Direction::South, x, y, z);
+                }
+            }
+            result.extend(north_layer);
+            result.extend(south_layer);
         };
 
         result
@@ -93,7 +121,7 @@ impl Vertex {
     const ORIGIN: Vertex = Vertex {x: 0., y: 0., z: 0.};
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum Direction {
     Up,
     Down,
@@ -114,20 +142,30 @@ impl Direction {
             Direction::South => v.z -= amount,
         };
     }
+    fn step(&self, x: u32, y: u32, z: u32) -> [u32; 3] {
+        match self {
+            Direction::Up => [x, y+1, z],
+            Direction::Down => [x, y.wrapping_sub(1), z],
+            Direction::East => [x+1, y, z],
+            Direction::West => [x.wrapping_sub(1), y, z],
+            Direction::North => [x, y, z+1],
+            Direction::South => [x, y, z.wrapping_sub(1)],
+        }
+    }
 }
 
 fn make_quad(side: Direction, x: u32, y: u32, z: u32) -> [Vertex; 4] {
-    let x = x as f32;
-    let y = y as f32;
-    let z = z as f32;
-    let v = |x, y, z| Vertex { x: x, y: y, z: z };
+    let x1 = x + 1;
+    let y1 = y + 1;
+    let z1 = z + 1;
+    let v = |x, y, z| Vertex { x: x as f32, y: y as f32, z: z as f32};
     match side {
-        Direction::Up    => [v(   x, 1.+y,    z), v(1.+x, 1.+y,    z), v(1.+x, 1.+y, 1.+z), v(   x, 1.+y, 1.+z)],
-        Direction::Down  => [v(   x,    y,    z), v(   x,    y, 1.+z), v(1.+x,    y, 1.+z), v(1.+x,    y,    z)],
-        Direction::East  => [v(1.+x,    y,    z), v(1.+x,    y, 1.+z), v(1.+x, 1.+y, 1.+z), v(1.+x, 1.+y,    z)],
-        Direction::West  => [v(   x,    y,    z), v(   x, 1.+y,    z), v(   x, 1.+y, 1.+z), v(   x,    y, 1.+z)],
-        Direction::North => [v(   x,    y, 1.+z), v(   x, 1.+y, 1.+z), v(1.+x, 1.+y, 1.+z), v(1.+x,    y, 1.+z)],
-        Direction::South => [v(   x,    y,    z), v(1.+x,    y,    z), v(1.+x, 1.+y,    z), v(   x, 1.+y,    z)],
+        Direction::Up    => [v( x, y1,  z), v(x1, y1,  z), v(x1, y1, z1), v( x, y1, z1)],
+        Direction::Down  => [v( x,  y,  z), v( x,  y, z1), v(x1,  y, z1), v(x1,  y,  z)],
+        Direction::East  => [v(x1,  y,  z), v(x1,  y, z1), v(x1, y1, z1), v(x1, y1,  z)],
+        Direction::West  => [v( x,  y,  z), v( x, y1,  z), v( x, y1, z1), v( x,  y, z1)],
+        Direction::North => [v( x,  y, z1), v( x, y1, z1), v(x1, y1, z1), v(x1,  y, z1)],
+        Direction::South => [v( x,  y,  z), v(x1,  y,  z), v(x1, y1,  z), v( x, y1,  z)],
     }
 }
 
@@ -138,13 +176,13 @@ struct Quad {
     side : Direction,
 }
 
+/*
 #[derive(Debug)]
 struct Triangle {
     vertices: [Vertex; 3],
     colour: Colour,
 }
 
-/*
 struct RenderableVoxelModel {
     buffer: Buffer<f32>,
 }
@@ -175,9 +213,9 @@ fn load_model(stream : &mut Read) -> ::std::io::Result<VoxelModel> {
 }
 
 pub fn main() {
-    let mut model_file = File::open("minotaur_head.vox");
+    let model_file = File::open("minotaur_head.vox");
     let model = model_file.and_then(|mut f| load_model(&mut f)).unwrap();
     let polys = model.polygonise();
     println!("{:?}", model);
-    println!("{:?} quads", polys.len());
+    println!("{} quads", polys.len());
 }
